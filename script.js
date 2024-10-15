@@ -1,5 +1,28 @@
 document.getElementById('fileInput').addEventListener('change', handleFileSelect);
 document.getElementById('loadDataBtn').addEventListener('click', renderFromFile);
+document.getElementById('timezone').addEventListener('change', () => {
+    // Re-render the chart and tables when the time zone changes
+    renderFromFile()
+});
+// Populate the timezone dropdown with all available time zones
+function populateTimezones() {
+    const timezoneSelect = document.getElementById('timezone');
+    
+    // Get all supported time zones
+    const timeZones = Intl.supportedValuesOf('timeZone');
+    
+    timeZones.forEach(timezone => {
+        const option = document.createElement('option');
+        option.value = timezone;
+        option.textContent = timezone;
+        timezoneSelect.appendChild(option);
+    });
+
+    // Set the default value to the browser's current time zone
+    timezoneSelect.value = Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+populateTimezones();  // Call this function to populate the timezones
 
 let equityData = null; 
 let drawdownData = null;
@@ -7,6 +30,9 @@ let tradeStats = null;
 let portfolioStats = null;
 let trades = null;
 let orders = null;
+let equitykChart = null;
+let drawdnChart = null;
+let tradedChart = null;
 
 // Handle the file input change event
 function handleFileSelect(event) {
@@ -53,10 +79,16 @@ function renderFromFile() {
 // Render Equity Curve
 function renderEquityCurve() {
     const ctx = document.getElementById('equityCurve').getContext('2d');
-    const labels = equityData.map(item => new Date(item[0] * 1000).toLocaleDateString());
+    const timezone = document.getElementById('timezone').value;  // Get the selected timezone
+    const labels = equityData.map(item => new Date(item[0] * 1000).toLocaleDateString('en-US', { timeZone: timezone }));
     const values = equityData.map(item => item[1]);
 
-    const equitykChart = new Chart(ctx, {
+    // Destroy the previous instance if it exists (to avoid creating multiple overlapping charts)
+    if (equitykChart) {
+        equitykChart.destroy();
+    }
+    
+    equitykChart = new Chart(ctx, {
         type: 'line',
         data: {
             labels: labels,
@@ -174,10 +206,16 @@ function renderCandlestickChart() {
 // Render Drawdown Chart
 function renderDrawdownChart() {
     const ctx = document.getElementById('drawdownChart').getContext('2d');
-    const labels = drawdownData.map(item => new Date(item[0] * 1000).toLocaleDateString());
+    const timezone = document.getElementById('timezone').value;
+    const labels = drawdownData.map(item => new Date(item[0] * 1000).toLocaleDateString('en-US', { timeZone: timezone }));
     const values = drawdownData.map(item => item[1]);
 
-    new Chart(ctx, {
+    // Destroy the previous instance if it exists (to avoid creating multiple overlapping charts)
+    if (drawdnChart) {
+        drawdnChart.destroy();
+    }
+    
+    drawdnChart = new Chart(ctx, {
         type: 'line',
         data: {
             labels: labels,
@@ -203,7 +241,12 @@ function renderTradeDistribution() {
     const winningTrades = tradeStats.numberOfWinningTrades;
     const losingTrades = tradeStats.numberOfLosingTrades;
 
-    new Chart(ctx, {
+    // Destroy the previous instance if it exists (to avoid creating multiple overlapping charts)
+    if (tradedChart) {
+        tradedChart.destroy();
+    }
+    
+    tradedChart = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: ['Winning Trades', 'Losing Trades'],
@@ -241,14 +284,17 @@ function renderStatistics() {
 // Render Trades Table
 function renderTradesTable() {
     const tbody = document.querySelector("#tradesTable tbody");
+    const timezone = document.getElementById('timezone').value;  // Get the selected timezone
+
+    tbody.innerHTML = '';
 
     trades.forEach(trade => {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${trade.symbol.value}</td>
-            <td>${new Date(trade.entryTime).toLocaleString()}</td>
+            <td>${new Date(trade.entryTime).toLocaleString("en-US", {timeZone: timezone})}</td>
             <td>${trade.entryPrice}</td>
-            <td>${new Date(trade.exitTime).toLocaleString()}</td>
+            <td>${new Date(trade.exitTime).toLocaleString("en-US", {timeZone: timezone})}</td>
             <td>${trade.exitPrice}</td>
             <td>${trade.profitLoss}</td>
             <td>${trade.mae}</td>
@@ -264,6 +310,9 @@ function renderTradesTable() {
 // Render Orders Table
 function renderOrdersTable() {
     const tbody = document.querySelector("#ordersTable tbody");
+    const timezone = document.getElementById('timezone').value;  // Get the selected timezone
+
+    tbody.innerHTML = '';
     
     // Loop through each order in the orders object
     Object.values(orders).forEach(order => {
@@ -274,7 +323,7 @@ function renderOrdersTable() {
         
         row.innerHTML = `
             <td>${order.symbol.value}</td>
-            <td>${new Date(order.time).toLocaleString()}</td>
+            <td>${new Date(order.time).toLocaleString("en-US", {timeZone: timezone})}</td>
             <td>${orderType}</td>
             <td>${order.quantity}</td>
             <td>${order.price.toFixed(2)}</td>
