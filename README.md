@@ -33,10 +33,11 @@ Once the page loads in your favorite browser:
 This is not meant to be a fully featured dashboard. It is a starting point with  
 references and examples to do everything you need to display the data output from the backtest.  
 
-One thing I could not get to work properly is using candlestick chart for the equity data. 
-
 ### Example Output
 
-![image](https://github.com/user-attachments/assets/f64b4f65-58cd-4e45-8373-43d3a4c7b9ce)
+![image](https://github.com/user-attachments/assets/a5cc5971-0b79-4ca3-8f6a-ef038e946cec)
 
-![image](https://github.com/user-attachments/assets/41b0be71-1a51-49b4-b3a6-6c228ae3aeea)
+![image](https://github.com/user-attachments/assets/a2e03328-d49a-4958-bfb8-0fa09d99f4fc)
+
+![image](https://github.com/user-attachments/assets/785df96a-90ad-42af-b61e-f10332bf92ca)
+
