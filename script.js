@@ -25,6 +25,7 @@ function populateTimezones() {
 populateTimezones();  // Call this function to populate the timezones
 
 let equityData = null; 
+let equityReturn = null;
 let drawdownData = null;
 let tradeStats = null;
 let portfolioStats = null;
@@ -33,6 +34,7 @@ let orders = null;
 let equitykChart = null;
 let drawdnChart = null;
 let tradedChart = null;
+let candlestickChart = null;
 
 // Handle the file input change event
 function handleFileSelect(event) {
@@ -43,6 +45,7 @@ function handleFileSelect(event) {
             try {
                 const data = JSON.parse(e.target.result);  // Parse the JSON file
                 equityData = data.charts['Strategy Equity'].series.Equity.values;  // Extract the equity data
+                equityReturn = data.charts['Strategy Equity'].series.Return.values;
                 drawdownData = data.charts['Drawdown'].series['Equity Drawdown'].values;
                 tradeStats = data.totalPerformance.tradeStatistics;
                 portfolioStats = data.totalPerformance.portfolioStatistics;
@@ -64,8 +67,8 @@ function renderFromFile() {
     }
 
     // Render charts and statistics
-    renderEquityCurve();
-    //renderCandlestickChart(); 
+    //renderEquityCurve();
+    renderCandlestickChart(); 
     renderDrawdownChart();
     renderTradeDistribution();
     renderStatistics();
@@ -134,74 +137,145 @@ function renderEquityCurve() {
     });
 }
 
-function renderCandlestickChart() {
-    const ctx = document.getElementById('equityCurve').getContext('2d');
-
-    // Map data to the required format for a candlestick chart
-    const candlestickData = equityData.map(item => ({
-        x: new Date(item[0] * 1000),  // Convert timestamp to Date
-        o: item[1],  // Open price
-        h: item[2],  // High price
-        l: item[3],  // Low price
-        c: item[4]   // Close price
-    }));
-
-    //console.log('Candlestick Data:', candlestickData);  // Log the mapped data for debugging
-
-    const candlestickChart = new Chart(ctx, {
-        type: 'candlestick',  // Use 'candlestick' chart type
-        data: {
-            datasets: [{
-                label: 'Equity Value',
-                data: candlestickData,
-                borderColor: 'rgba(75, 192, 192, 1)',
-                color: {
-                    up: 'rgba(0, 255, 0, 1)',  // Green for up candles
-                    down: 'rgba(255, 0, 0, 1)',  // Red for down candles
-                    unchanged: 'rgba(0, 0, 255, 1)'  // Blue for unchanged
-                }
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                x: { 
-                    title: { display: true, text: 'Date' },
-                    type: 'time',  // Time-based x-axis
-                    time: {
-                        unit: 'minute'  // Display by day
-                    }
-                },
-                y: { 
-                    title: { display: true, text: 'Price ($)' }
-                }
-            },
-            plugins: {
-                zoom: {
-                    pan: {
-                        enabled: true,
-                        mode: 'x'  // Allow panning in both x and y directions
-                    },
-                    zoom: {
-                        wheel: {
-                            enabled: true  // Enable zooming with the mouse wheel
-                        },
-                        pinch: {
-                            enabled: true  // Enable zooming with pinch gestures on touch devices
-                        },
-                        mode: 'x'  // Allow zooming in both x and y directions
-                    }
-                }
-            }
-        }
-    });
-    // Add reset zoom functionality
-    document.getElementById('resetZoom').addEventListener('click', function() {
-        candlestickChart.resetZoom();
+// Convert the timestamps from seconds to milliseconds
+function convertToMilliseconds(data) {
+    return data.map(point => {
+        return [point[0] * 1000, point[1], point[2], point[3], point[4]];
     });
 }
 
-// Render Equity Curve with zoom and time-based scale
+// Function to aggregate 5-minute data into daily bars (local time zone)
+function aggregateToDaily(data) {
+    const dailyData = [];
+    let currentDay = null;
+    let open, high, low, close;
+
+    data.forEach(point => {
+        const date = new Date(point[0]); // Local date
+        const day = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();  // Get start of the local day
+
+        if (currentDay !== day) {
+            if (currentDay !== null) {
+                // Push the previous day's aggregated OHLC data
+                dailyData.push([currentDay, open, high, low, close]);
+            }
+
+            // Start new day aggregation
+            currentDay = day;
+            open = point[1];
+            high = point[2];
+            low = point[3];
+            close = point[4];
+        } else {
+            // Continue aggregating the current day's OHLC
+            high = Math.max(high, point[2]);
+            low = Math.min(low, point[3]);
+            close = point[4];
+        }
+    });
+
+    // Add the last day's data
+    if (currentDay !== null) {
+        dailyData.push([currentDay, open, high, low, close]);
+    }
+
+    return dailyData;
+}
+
+function renderCandlestickChart() {
+    const dataInMilliseconds = convertToMilliseconds(equityData);
+    const barDataInMilliseconds = equityReturn.map(point => [point[0] * 1000, point[1]]);
+
+    // Initialize Highcharts candlestick chart with a secondary bar chart
+    Highcharts.stockChart('equityCurve', {
+        rangeSelector: {
+            selected: 1
+        },
+        yAxis: [
+            {
+                labels: {
+                    align: 'right',
+                    x: -3
+                },
+                title: {
+                    text: 'Equity'
+                },
+                height: '60%',
+                lineWidth: 2,
+                resize: {
+                    enabled: true
+                }
+            },
+            {
+                labels: {
+                    align: 'right',
+                    x: -3
+                },
+                title: {
+                    text: 'Return'
+                },
+                top: '65%',
+                height: '35%',
+                offset: 0,
+                lineWidth: 2
+            }
+        ],
+        tooltip: {
+            split: true
+        },
+        series: [
+            {
+                type: 'candlestick',
+                name: '5-minute data',
+                data: dataInMilliseconds,
+                id: 'candlestick',
+                upColor: 'green', // Green color for positive candles
+                color: 'red',     // Red color for negative candles
+                tooltip: {
+                    valueDecimals: 2
+                }
+            },
+            {
+                type: 'column',
+                name: 'Return',
+                data: barDataInMilliseconds,
+                yAxis: 1,
+                id: 'Return',
+                tooltip: {
+                    valueDecimals: 2
+                }
+            }
+        ],
+        xAxis: {
+            minRange: 3600 * 1000, // Allow minimum 1 hour range (in milliseconds)
+            events: {
+                afterSetExtremes: function (e) {
+                    const zoomRange = e.max - e.min;
+                    const oneDay = 96 * 3600 * 1000;
+                    const chart = this.chart;
+                    const candlestickSeries = chart.get('candlestick');
+
+                    // If the zoomed range is more than a day, show daily data
+                    if (zoomRange > oneDay) {
+                        const dailyData = aggregateToDaily(dataInMilliseconds);
+                        candlestickSeries.update({ data: dailyData, name: 'Daily data' }, false);
+                    } else {
+                        // If zoomed in, show 5-minute data
+                        candlestickSeries.update({ data: dataInMilliseconds, name: '5-minute data' }, false);
+                    }
+
+                    chart.redraw();
+                }
+            }
+        },
+        navigator: {
+            enabled: true  // Allows zooming with the navigator
+        },
+        scrollbar: {
+            enabled: true  // Provides easier scrolling/zooming
+        }
+    });
+}
 
 // Render Drawdown Chart
 function renderDrawdownChart() {
@@ -247,7 +321,7 @@ function renderTradeDistribution() {
     }
     
     tradedChart = new Chart(ctx, {
-        type: 'bar',
+        type: 'pie',
         data: {
             labels: ['Winning Trades', 'Losing Trades'],
             datasets: [{
@@ -258,12 +332,6 @@ function renderTradeDistribution() {
                 borderWidth: 1
             }]
         },
-        options: {
-            scales: {
-                x: { title: { display: true, text: 'Trade Type' }},
-                y: { title: { display: true, text: 'Number of Trades' }}
-            }
-        }
     });
 }
 
